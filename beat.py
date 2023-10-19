@@ -2,6 +2,11 @@ import librosa
 import librosa.display
 import numpy as np
 import sounddevice as sd
+import soundfile as sf
+
+def save_wav_file(y, sr, file_path):
+    sf.write(file_path, y, sr)
+
 
 def amplify_on_downbeats(y, sr, downbeat_times, window=0.1, amplification_factor=1.5):
   # Calculate the number of samples to mute based on mute_duration
@@ -9,8 +14,9 @@ def amplify_on_downbeats(y, sr, downbeat_times, window=0.1, amplification_factor
     
   # For each downbeat, mute the signal
   for downbeat_time in downbeat_times:
-    start_sample = downbeat_time
+    start_sample = int(round(downbeat_time))
     end_sample = start_sample + mute_samples
+    print(sr, start_sample, end_sample, len(y))
     y[start_sample:end_sample] *= amplification_factor
   return y
 
@@ -32,22 +38,23 @@ def get_downbeat_times(y, sr):
   new_tempo = 0
   for i in range(1, len(beats)):
         # Dynamically adjust the expected measure interval based on adjacent beat intervals
-        if i % 4 == 0:
+        if (i - 1) % 2 == 0:
           downbeats.append(beats[i])
         if i >= 2:
             interv = (beats[i] - beats[i-2]) / (2 * sr)
-            print(interv)
+            # print(interv)
             new_tempo = 60 / (interv)
-        print(new_tempo)
+        # print(new_tempo)
 
         # if measures != 0 and (i % measures) == 0:
         #     print("ADDING DOWNBEAT", len(downbeats))
         #     downbeats.append(beats[i])
 
-  downbeat_times = librosa.frames_to_time(downbeats, sr=sr)
-  return downbeat_times
+	# TODO: wjat these frames?
+  # downbeat_times = librosa.frames_to_time(downbeats, sr=sr)
+  return downbeats
 
-def do_it(filename, window_length=0.2, amplification_factor=0):
+def do_it(filename, window_length=0.2, amplification_factor=.1):
     # Load the audio file
     y, sr = librosa.load(filename)
     downbeat_times = get_downbeat_times(y, sr)
@@ -67,11 +74,12 @@ def do_it(filename, window_length=0.2, amplification_factor=0):
     #     y[start_sample:end_sample] *= amplification_factor
 
     # Play back the modified audio
+    save_wav_file(y, sr, "out.wav")
     sd.play(y_amplified, samplerate=sr)
     sd.wait()
     
 # Example:
-# filename = 'EtudeC.mp3'
-filename = 'raindrop.mp3'
+filename = 'EtudeC.mp3'
+# filename = 'raindrop.mp3'
 upbeats = do_it(filename)
 print(upbeats)
