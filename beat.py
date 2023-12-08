@@ -1,5 +1,6 @@
 import time
 import librosa
+import matplotlib.pyplot as plt
 import math
 import threading
 import librosa.display
@@ -56,6 +57,12 @@ def generateGaussianRandomDownwardLight(time_steps: int, volumes: list[int], gau
         We will re-sample until we get a value that is within the range of 0-255.
     """
     assert len(gaussian_means) == len(gaussian_stds), "Must have same number of means and stds"
+
+    N_VOLUME_SEPARATIONS = 4
+    vol_min, vol_max = min(volumes), max(volumes)
+    vol_separation = (vol_max - vol_min) / N_VOLUME_SEPARATIONS
+
+
     print(max(volumes), min(volumes))
     def sample():
         idx = np.random.choice(len(gaussian_means))
@@ -63,17 +70,28 @@ def generateGaussianRandomDownwardLight(time_steps: int, volumes: list[int], gau
         if normal_samp.max() > 255 or normal_samp.min() < 0:
             return sample()
         return normal_samp.round().astype(int)
-    cmds = []
+    cmds: list[list[str]] = []
 
     if not top_pixel_is_max:
         raise NotImplementedError("Only top pixel is max is implemented")
+    curr_light_step = 0
+
+    def get_volume_partition(i):
+        return int((volumes[i] - vol_min) // vol_separation)
+
     for i in range(time_steps):
         # TODO:: idk
-        pixel = (n_lights - i % n_lights) - 1
+        cmd_set = []
         # if pixel 
-        cmd = formatPixelSet(pixel, *sample())
-        print("Color command", cmd)
-        cmds.append(cmd)
+        # print("Color command", cmd)
+        n_pixel_step = int(2 ** get_volume_partition(i))
+        # TODO: progromatting
+        for j in range(n_pixel_step):
+            pixel = (n_lights - curr_light_step % n_lights) - 1
+            cmd = formatPixelSet(pixel, *sample())
+            cmd_set.append(cmd)
+            curr_light_step += 1
+        cmds.append(cmd_set)
     return cmds
     # Start
 
@@ -97,6 +115,8 @@ def get_sample_moments(y, sr, downbeat_subdivisions=16):
     # Adjust the tightness parameter for more flexibility in tempo variations
     tempo, beats = librosa.beat.beat_track(
         y=y, sr=sr, onset_envelope=onset_env, tightness=100, units='samples')
+    print(sr)
+    # exit()
 
     # If you expect frequent tempo changes, you might divide the audio into segments and track beats segment-wise
     # But in this simple example, we'll just try to identify downbeats from the tracked beats
@@ -114,18 +134,28 @@ def get_sample_moments(y, sr, downbeat_subdivisions=16):
     def add_downbeat_time_steps(mul_fact=16):
         volumes = []
         steps = []
+        y_abs = np.abs(y)
         for i, _ in enumerate(downbeats):
             if i >= 1:
                 period = downbeats[i] - downbeats[i - 1]
                 for j in range(mul_fact):
                     steps.append(int(round(downbeats[i - 1] + (period / mul_fact) * j)))
-                    start_index = max(beats[i] - 10, 0)  # Ensuring the start index is not negative
-                    end_index = min(beats[i] + 10, len(y))  # Ensuring the end index does not exceed the length of y
-                    average_volume = np.mean(np.abs(y[start_index:end_index]))
-                    volumes.append(average_volume)
+                    
+                    # Make it 1 second for now?
+                    window_size = sr * 2
+                    avg = sum(y_abs[beats[i] - window_size // 2:beats[i] + window_size // 2]) / window_size
+                    volumes.append(avg)
         return steps, volumes
 
     sample_timestamps, volumes = add_downbeat_time_steps()
+    # Plotting the volumes
+    plt.figure(figsize=(10, 6))
+    plt.plot(sample_timestamps, volumes, marker='o')
+    plt.title('Average Volume at Downbeats')
+    plt.xlabel('Sample Index')
+    plt.ylabel('Average Volume')
+    plt.grid(True)
+    plt.savefig("test_vol.png")
     return sample_timestamps, volumes
 
 
@@ -142,7 +172,7 @@ def send_light_commands_at_downbeats(downbeat_times, sr, cmds):
         # print(volumes[i], i)
         # Calculate the time to wait until the next downbeat
         wait_time = downbeat_time / sr
-        threading.Timer(wait_time, sendSerData, args=[cmds[i]]).start()
+        threading.Timer(wait_time, sendSerData, args=cmds[i]).start()
 
 def clearLights():
     sendSerData("C")
@@ -173,7 +203,7 @@ def do_it(filename, window_length=0.2, amplification_factor=1.2):
     #     target=send_serial_commands_at_downbeats, args=(time_steps, sr))
 
     send_light_commands_thread = threading.Thread(
-        target=send_light_commands_at_downbeats, args=(time_steps, volumes, sr, lightCmds))
+        target=send_light_commands_at_downbeats, args=(time_steps, sr, lightCmds))
 
     play_thread.start()
     # send_motor_commands_thread.start()
