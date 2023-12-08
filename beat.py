@@ -45,8 +45,12 @@ def formatAngleMove(angle, delayMicroSec=500):
     delayMicroSec = str(delayMicroSec).zfill(5)[:5]
     return f"{dir}:{angle}:{delayMicroSec}"
 
-def formatPixelSet(pixel, R, G, B):
-    return f"L:{str(pixel).zfill(3)}:{str(R).zfill(3)}:{str(G).zfill(3)}:{str(B).zfill(3)}"
+def formatPixelSet(pixels: list[int], Rs: list[int], Gs: list[int], Bs: list[int]):
+    extra_str = ""
+    for i in range(len(pixels)):
+        extra_str += f":{str(pixels[i]).zfill(3)}:{str(Rs[i]).zfill(3)}:{str(Gs[i]).zfill(3)}:{str(Bs[i]).zfill(3)}"
+    return f"L" + extra_str
+    # return f"L:{str(pixel).zfill(3)}:{str(R).zfill(3)}:{str(G).zfill(3)}:{str(B).zfill(3)}"
 
 
 def save_wav_file(y, sr, file_path):
@@ -60,7 +64,7 @@ def generateGaussianRandomDownwardLight(time_steps: int, volumes: list[int], gau
     """
     assert len(gaussian_means) == len(gaussian_stds), "Must have same number of means and stds"
 
-    N_VOLUME_SEPARATIONS = 8
+    N_VOLUME_SEPARATIONS = 6
     vol_min, vol_max = min(volumes), max(volumes)
     vol_separation = (vol_max - vol_min) / N_VOLUME_SEPARATIONS
 
@@ -82,17 +86,24 @@ def generateGaussianRandomDownwardLight(time_steps: int, volumes: list[int], gau
 
     for i in range(time_steps):
         # TODO:: idk
-        cmd_set = []
         # if pixel 
         # print("Color command", cmd)
-        n_pixel_step = int(2 ** get_volume_partition(i))
+        n_pixel_step = int(round(1.7 ** get_volume_partition(i)))
         # TODO: progromatting
+        pixels = []
+        Rs = []
+        Gs = []
+        Bs = []
         for j in range(n_pixel_step):
             pixel = (n_lights - curr_light_step % n_lights) - 1
-            cmd = formatPixelSet(pixel, *sample())
-            cmd_set.append(cmd)
+            pixels.append(pixel)
+            R, G, B = sample()
+            Rs.append(R)
+            Gs.append(G)
+            Bs.append(B)
             curr_light_step += 1
-        cmds.append("\n".join(cmd_set))
+        s = formatPixelSet(pixels, Rs, Gs, Bs)
+        cmds.append(s)
     return cmds
     # Start
 

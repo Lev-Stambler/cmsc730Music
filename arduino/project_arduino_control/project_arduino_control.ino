@@ -38,16 +38,11 @@ void blue_green_gradient(int all_on=0) {
   }
 }
 
-void set_strip(int pixel, int R, int G, int B) {
+void set_strip(int * pixels, int * Rs, int * Gs, int * Bs, int n_pixels) {
 //  strip.clear();
-  pixelsR[pixel] = R;
-  pixelsG[pixel] = G;
-  pixelsB[pixel] = B;
 //  strip.setPixelColor(pixel, strip.Color(R, G, B));
-  for (int i = 0; i < NUM_PIXELS; i++) {
-//   int i = pixel;
-//    strip.setPixelColor(pixel, pixelsR[i], pixelsG[i], pixelsB[i]);
-    strip.setPixelColor(i, pixelsR[i], pixelsG[i], pixelsB[i]);
+  for (int i = 0; i <n_pixels; i++) {
+    strip.setPixelColor(pixels[i], Rs[i], Gs[i], Bs[i]);
   }
   strip.show();
 }
@@ -63,8 +58,9 @@ void setup() {
   Serial.begin(115200);
   strip.begin();
   strip.show();
-  if (DEBUG)
-    blue_green_gradient(0);
+//  if (DEBUG)
+//    blue_green_gradient(0);
+  strip.clear();
 }
 
 void loop() {
@@ -75,13 +71,24 @@ void loop() {
     String command = Serial.readStringUntil('\n'); // Read the command from serial
     //    L:<Pixel Number>:R:G:B     -- 3 per digit
     if ((char) command[0] == 'L') {
-      int pixel = command.substring(2, 5).toInt();
-      int R = command.substring(6, 9).toInt();
-      int G = command.substring(10, 13).toInt();
-      int B = command.substring(14, 17).toInt();
-      if (DEBUG)
-        Serial.printf("Setting pixel %d to (%d, %d, %d)\n", pixel, R, G, B);
-      set_strip(pixel, R, G, B);
+      int n_lights = (command.length() - 1) / 16;
+      
+      int Rs[n_lights];
+      int Gs[n_lights];
+      int Bs[n_lights];
+      int pixels[n_lights];
+
+      for (int j = 0; j < n_lights; j++) {
+        pixels[j] = command.substring(j * 16 + 2, j * 16 + 5).toInt();
+        Rs[j] = command.substring(j * 16 + 6, j * 16 + 9).toInt();
+        Gs[j] = command.substring(j * 16 + 10, j * 16 + 13).toInt();
+        Bs[j] = command.substring(j * 16 + 14, j * 16 + 17).toInt();
+        if (DEBUG)
+          Serial.printf("Setting pixel %d %d to (%d, %d, %d)\n", j, pixels[j], Rs[j], Gs[j], Bs[j]);
+        
+      }
+      
+      set_strip(pixels, Rs, Gs, Bs, n_lights);
     } else if ((char) command[0] == 'C') {
       strip.clear();
     }else {
@@ -93,8 +100,10 @@ void loop() {
   /************ Perform the looping *********/
 }
 
-// +:000360:01000
 
+// ** Example manual commands**
+// +:000360:01000
+// ^^ +/- for direction. 6 digits for angle. 5 digits for "delay time," more delay time = more power but slower
 
 void readSerial(String command, long * ang, int * delaytime) {
   command.trim(); // Trim any whitespace
