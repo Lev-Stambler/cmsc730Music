@@ -18,13 +18,15 @@ serLights  = ser
 
 i = 0
 
-def sendSerData(data):
-    data += "\r\n"
-    if DEBUG:
-        global i
-        i += 1
-        print("SENDING DATA", i, data)
-    ser.write(data.encode())
+def sendSerData(data: str):
+    datas = data.split("\n")
+    for data in datas:
+        data += "\r\n"
+        if DEBUG:
+            global i
+            i += 1
+            print("SENDING DATA", i, data)
+        ser.write(data.encode())
 
 def sendSerLights(data):
     data += "\r\n"
@@ -58,12 +60,11 @@ def generateGaussianRandomDownwardLight(time_steps: int, volumes: list[int], gau
     """
     assert len(gaussian_means) == len(gaussian_stds), "Must have same number of means and stds"
 
-    N_VOLUME_SEPARATIONS = 4
+    N_VOLUME_SEPARATIONS = 8
     vol_min, vol_max = min(volumes), max(volumes)
     vol_separation = (vol_max - vol_min) / N_VOLUME_SEPARATIONS
 
 
-    print(max(volumes), min(volumes))
     def sample():
         idx = np.random.choice(len(gaussian_means))
         normal_samp = np.random.normal(gaussian_means[idx], gaussian_stds[idx])
@@ -91,7 +92,7 @@ def generateGaussianRandomDownwardLight(time_steps: int, volumes: list[int], gau
             cmd = formatPixelSet(pixel, *sample())
             cmd_set.append(cmd)
             curr_light_step += 1
-        cmds.append(cmd_set)
+        cmds.append("\n".join(cmd_set))
     return cmds
     # Start
 
@@ -169,10 +170,10 @@ def send_serial_commands_at_downbeats(downbeat_times, sr):
 
 def send_light_commands_at_downbeats(downbeat_times, sr, cmds):
     for i, downbeat_time in enumerate(downbeat_times):
-        # print(volumes[i], i)
+        print(cmds[i], i)
         # Calculate the time to wait until the next downbeat
         wait_time = downbeat_time / sr
-        threading.Timer(wait_time, sendSerData, args=cmds[i]).start()
+        threading.Timer(wait_time, sendSerData, args=[cmds[i]]).start()
 
 def clearLights():
     sendSerData("C")
@@ -191,7 +192,7 @@ def do_it(filename, window_length=0.2, amplification_factor=1.2):
     # save_wav_file(y, sr, "out.wav")
 
     lightCmds = generateGaussianRandomDownwardLight(len(time_steps), volumes, [[150, 10, 200], [20, 150, 200], [255, 0, 0], [10, 10, 10]], [[20, 2, 50], [10, 40, 50], [50, 20, 20], [2, 2, 2]])
-    print("LEN LIGHTS", len(time_steps), len(lightCmds))
+    # print("LEN LIGHTS", len(time_steps), len(lightCmds))
 
     # Create a thread for playing the music
     play_thread = threading.Thread(target=sd.play, args=(y, sr))
@@ -230,4 +231,4 @@ if __name__ == "__main__":
     filename = 'GirlFellTrimmed.mp3'
     # filename = 'raindrop.mp3'
     upbeats = do_it(filename)
-    print(upbeats)
+    # print(upbeats)
