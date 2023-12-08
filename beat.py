@@ -56,6 +56,7 @@ def generateGaussianRandomDownwardLight(time_steps: int, volumes: list[int], gau
         We will re-sample until we get a value that is within the range of 0-255.
     """
     assert len(gaussian_means) == len(gaussian_stds), "Must have same number of means and stds"
+    print(volumes.max(), volumes.min())
     def sample():
         idx = np.random.choice(len(gaussian_means))
         normal_samp = np.random.normal(gaussian_means[idx], gaussian_stds[idx])
