@@ -110,6 +110,7 @@ def generateGaussianRandomMotorMovement(time_steps: int, volumes_diffs: list[int
             curr_angle += angle_samp
         elif i % N_STEPS_PER_MOVE == 0 and change_period == True and i - last_change > N_STEPS_PER_BREAK:
             change_period = False
+            cmds.append("")
         else:
             cmds.append("")
     return cmds
