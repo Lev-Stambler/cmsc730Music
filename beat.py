@@ -69,8 +69,8 @@ def generateGaussianRandomMotorMovement(time_steps: int, volumes_diffs: list[int
     gaussian_angle_means = [0 for i in range(N_ZONES)]
     gaussian_angle_vars = [40 * i for i in range(N_ZONES)]
 
-    gaussian_delay_microsec_means = [int(MAX_DELAY - (MAX_DELAY - MIN_DELAY // N_ZONES) * i) for i in range(N_ZONES)]
-    gaussian_delay_microsec_vars = [100 * i for i in range(N_ZONES)]
+    gaussian_delay_microsec_means = [int(MAX_DELAY - (((MAX_DELAY - MIN_DELAY) // N_ZONES) * (i + 1))) for i in range(N_ZONES)]
+    gaussian_delay_microsec_vars = [20 * i for i in range(N_ZONES)]
 
     def sample(idx):
         delay_samp = np.random.normal(gaussian_delay_microsec_means[idx], gaussian_delay_microsec_vars[idx])
@@ -78,7 +78,7 @@ def generateGaussianRandomMotorMovement(time_steps: int, volumes_diffs: list[int
 
         if angle_samp > MAX_MOVE or angle_samp < MIN_MOVE or delay_samp > MAX_DELAY or delay_samp < MIN_DELAY:
             return sample(idx)
-        return (angle_samp.round().astype(int), delay_samp.round().astype(int))
+        return (int(round(angle_samp)), int(round(delay_samp)))
     cmds: list[str] = []
  
     def get_volume_diff_partition(i):
