@@ -197,7 +197,7 @@ void loop() {
 
 
 // ** Example manual commands**
-// +:000360:01000
+// +:000360:02000
 // ^^ +/- for direction. 6 digits for angle. 5 digits for "delay time," more delay time = more power but slower
 
 void readSerial(String command, long * ang, int * delaytime) {

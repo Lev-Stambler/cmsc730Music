@@ -33,9 +33,17 @@ color_means_melodic, color_vars_melodic = [[150, 10, 200], [20, 150, 200], [
 color_means_triumphant, color_vars_triumphant = [[250, 10, 10], [200, 10, 200], [
     255, 128, 0], [10, 10, 10]], [[10, 30, 30], [30, 40, 30], [2, 20, 1], [2, 2, 2]]
 
+color_means_transcendant, color_vars_transcendant = [[25, 25, 112], [230, 190, 255], [
+    255, 215, 0], [72, 209, 204], [10, 10, 10]], [[10, 10, 10], [10, 10, 10], [10, 10, 10], [10, 10, 10], [10, 10, 10]]
+
+color_means_joyous, color_vars_joyous = [[255, 255, 0], [255, 127, 80], [
+    30, 144, 255], [50, 205, 50], [10, 10, 10]], [[10, 10, 10], [10, 10, 10], [10, 10, 10], [10, 10, 10], [10, 10, 10]]
+
 colors = {
     "melodic": [color_means_melodic, color_vars_melodic],
-    "triumphant": [color_means_triumphant, color_vars_triumphant]
+    "triumphant": [color_means_triumphant, color_vars_triumphant],
+    "transcendant": [color_means_transcendant, color_vars_transcendant],
+    "joyous": [color_means_joyous, color_vars_joyous]
 }
 
 dropdown_options = list(colors.keys())  # Replace with your options
@@ -81,14 +89,15 @@ def on_submit():
     yt = False
     if input_entry.get().startswith("https://www.youtube.com/"):
         yt = True
-        print(f"Start time: {start_time}, End time: {end_time}")
         start_time = start_time_entry.get()
         end_time = end_time_entry.get()
+        print(f"Start time: {start_time}, End time: {end_time}")
         start_time_seconds = int(start_time.split(":")[0]) * 60 + \
             int(start_time.split(":")[1])
         end_time_seconds = int(end_time.split(":")[0]) * 60 + \
             int(end_time.split(":")[1])
-        get_mp3.get_mp3(input_entry.get(), start_time_seconds, end_time_seconds)
+        get_mp3.get_mp3(input_entry.get(),
+                        start_time_seconds, end_time_seconds)
         _file_name = get_mp3.yt_download_name + ".trim.mp3"
     else:
         # global file_name

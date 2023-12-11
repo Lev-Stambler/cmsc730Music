@@ -64,13 +64,13 @@ def generateGaussianRandomMotorMovement(time_steps: int, volumes_diffs: list[int
     # TODO:
     # Max spin time
     N_ZONES = 6
-    spin_per_zone = [0, 20, 40, 80, 160, 320]
+    spin_per_zone = [0, 10, 20, 40, 80, 160]
     prob_spin = [0, 0.08, 0.2, 0.3, 0.4, 0.4]
     diff_min, diff_max = min(volumes_diffs), max(volumes_diffs)
     diff_separation = (diff_max - diff_min) / N_ZONES
 
-    MAX_TOTAL_RET = 1_000
-    MIN_TOTAL_RET = -1_000
+    MAX_TOTAL_RET = 400
+    MIN_TOTAL_RET = -400
 
     
     def sample(idx):
@@ -86,6 +86,8 @@ def generateGaussianRandomMotorMovement(time_steps: int, volumes_diffs: list[int
         return min(int((volumes_diffs[i] - diff_min) // diff_separation), N_ZONES - 1)
 
     N_STEPS_PER_MOVE = 8
+    N_STEPS_PER_BREAK = 12
+    last_change = 0
     curr_angle = 0
     curr_dir = 1
     change_period = False
@@ -97,14 +99,16 @@ def generateGaussianRandomMotorMovement(time_steps: int, volumes_diffs: list[int
             angle_samp, delay_samp = sample(get_volume_diff_partition(i))
             if curr_angle > MAX_TOTAL_RET and curr_dir == 1:
                 change_period = True
+                last_change = i
                 curr_dir = -1
             elif curr_angle < MIN_TOTAL_RET and curr_dir == -1:
                 change_period = True
+                last_change = i
                 curr_dir = 1
             angle_samp = curr_dir * angle_samp
             cmds.append(formatAngleMove(angle_samp, delay_samp))
             curr_angle += angle_samp
-        elif i % N_STEPS_PER_MOVE == 0 and change_period == True:
+        elif i % N_STEPS_PER_MOVE == 0 and change_period == True and i - last_change > N_STEPS_PER_BREAK:
             change_period = False
         else:
             cmds.append("")
