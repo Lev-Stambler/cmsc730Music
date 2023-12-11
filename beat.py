@@ -88,19 +88,24 @@ def generateGaussianRandomMotorMovement(time_steps: int, volumes_diffs: list[int
     N_STEPS_PER_MOVE = 8
     curr_angle = 0
     curr_dir = 1
+    change_period = False
     for i in range(time_steps):
         # TODO:: idk
         # if pixel
         # print("Color command", cmd)
-        if i % N_STEPS_PER_MOVE == 0:
+        if i % N_STEPS_PER_MOVE == 0 and change_period == False:
             angle_samp, delay_samp = sample(get_volume_diff_partition(i))
-            if curr_angle > MAX_TOTAL_RET:
+            if curr_angle > MAX_TOTAL_RET and curr_dir == 1:
+                change_period = True
                 curr_dir = -1
-            elif curr_angle < MIN_TOTAL_RET:
+            elif curr_angle < MIN_TOTAL_RET and curr_dir == -1:
+                change_period = True
                 curr_dir = 1
-            angle_sample = curr_dir * angle_samp
+            angle_samp = curr_dir * angle_samp
             cmds.append(formatAngleMove(angle_samp, delay_samp))
             curr_angle += angle_samp
+        elif i % N_STEPS_PER_MOVE == 0 and change_period == True:
+            change_period = False
         else:
             cmds.append("")
     return cmds
