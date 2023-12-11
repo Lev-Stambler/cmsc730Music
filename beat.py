@@ -13,7 +13,7 @@ import serial
 N_PIXELS = 100
 DEBUG = True
 
-ser = serial.Serial('/dev/ttyUSB0', 115200)
+ser = serial.Serial('/dev/ttyUSB1', 115200)
 # serLights  = ser
 # serLights = serial.Serial('/dev/ttyUSB1', 115200)
 serLights = serial.Serial('/dev/ttyUSB0', 115200)
@@ -64,10 +64,13 @@ def generateGaussianRandomMotorMovement(time_steps: int, volumes_diffs: list[int
     # TODO:
     # Max spin time
     N_ZONES = 6
-    spin_per_zone = [0, 20, 40, 80, -160, 160]
-    prob_spin = [0, 0.08, 0.2, 0.3, 0.3, 0.3]
+    spin_per_zone = [0, 20, 40, 80, 160, 320]
+    prob_spin = [0, 0.08, 0.2, 0.3, 0.4, 0.4]
     diff_min, diff_max = min(volumes_diffs), max(volumes_diffs)
     diff_separation = (diff_max - diff_min) / N_ZONES
+
+    MAX_TOTAL_RET = 1_000
+    MIN_TOTAL_RET = -1_000
 
     
     def sample(idx):
@@ -83,13 +86,21 @@ def generateGaussianRandomMotorMovement(time_steps: int, volumes_diffs: list[int
         return min(int((volumes_diffs[i] - diff_min) // diff_separation), N_ZONES - 1)
 
     N_STEPS_PER_MOVE = 8
+    curr_angle = 0
+    curr_dir = 1
     for i in range(time_steps):
         # TODO:: idk
         # if pixel
         # print("Color command", cmd)
         if i % N_STEPS_PER_MOVE == 0:
             angle_samp, delay_samp = sample(get_volume_diff_partition(i))
+            if curr_angle > MAX_TOTAL_RET:
+                curr_dir = -1
+            elif curr_angle < MIN_TOTAL_RET:
+                curr_dir = 1
+            angle_sample = curr_dir * angle_samp
             cmds.append(formatAngleMove(angle_samp, delay_samp))
+            curr_angle += angle_samp
         else:
             cmds.append("")
     return cmds
