@@ -14,9 +14,9 @@ N_PIXELS = 100
 DEBUG = True
 
 ser = serial.Serial('/dev/ttyUSB1', 115200)
+serLights = serial.Serial('/dev/ttyUSB0', 115200)
 # serLights  = ser
 # serLights = serial.Serial('/dev/ttyUSB1', 115200)
-serLights = serial.Serial('/dev/ttyUSB0', 115200)
 
 i = 0
 
