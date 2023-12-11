@@ -6,8 +6,27 @@
 
 #define PIN_NEO_PIXEL  4  // pin 11 connected to NeoPixel
 #define NUM_PIXELS     100  // The number of LEDs (pixels) on NeoPixel
-
 #define DEBUG true
+#define BLUETOOTH false
+
+#if BLUETOOTH
+  #include "BluetoothSerial.h"
+  String device_name = "ESP32-BT-Slave";
+
+  #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
+    #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
+  #endif
+
+  #if !defined(CONFIG_BT_SPP_ENABLED)
+    #error Serial Bluetooth not available or not enabled. It is only available for the ESP32 chip.
+  #endif
+
+  BluetoothSerial SerialBT;
+  long lastBTSend = 0;
+  bool BTConnected = 0;
+#endif
+
+
 
 Adafruit_NeoPixel strip(NUM_PIXELS, PIN_NEO_PIXEL, NEO_GRB + NEO_KHZ800);
 
@@ -20,6 +39,7 @@ int delaytime = 0;
 int pixelsR[NUM_PIXELS];
 int pixelsG[NUM_PIXELS];
 int pixelsB[NUM_PIXELS];
+
 
 void blue_green_gradient(int all_on=0) {
   strip.clear();
@@ -47,6 +67,28 @@ void set_strip(int * pixels, int * Rs, int * Gs, int * Bs, int n_pixels) {
   strip.show();
 }
 
+#if BLUETOOTH
+void BTConfirmRequestCallback(uint32_t numVal)
+{
+  BTConnected = false;
+  Serial.println(numVal);
+}
+
+void BTAuthCompleteCallback(boolean success)
+{
+  if (success)
+  {
+    BTConnected = true;
+    Serial.println("Pairing success!!");
+  }
+  else
+  {
+    Serial.println("Pairing failed, rejected by user!!");
+  }
+}
+#endif
+
+
 void setup() {
   for (int i = 0; i < NUM_PIXELS; i++) {
     pixelsR[i] = 0;
@@ -56,6 +98,13 @@ void setup() {
   pinMode(DIR_PIN, OUTPUT);
   pinMode(STEP_PIN, OUTPUT);
   Serial.begin(115200);
+#if BLUETOOTH
+  SerialBT.enableSSP();
+  SerialBT.onConfirmRequest(BTConfirmRequestCallback);
+  SerialBT.onAuthComplete(BTAuthCompleteCallback);
+  SerialBT.begin(device_name); //Bluetooth device name
+  Serial.printf("Bluetooh Serial beginning on %s\n", device_name);
+#endif
   strip.begin();
   strip.show();
 //  if (DEBUG)
@@ -63,13 +112,50 @@ void setup() {
   strip.clear();
 }
 
+
+
 void loop() {
 //  TODO: remove
 //  while (true)
-//    
-  if (Serial.available() > 0) {
-    String command = Serial.readStringUntil('\n'); // Read the command from serial
-    //    L:<Pixel Number>:R:G:B     -- 3 per digit
+// 
+  #if BLUETOTTH
+  while (!BTConnected)
+  {
+    if (Serial.available())
+    {
+      int dat = Serial.read();
+//      SerialBT.confirmReply(true);
+      if (dat == 'Y' || dat == 'y')
+      {
+        SerialBT.confirmReply(true);
+      }
+      else
+      {
+        SerialBT.confirmReply(false);
+      }
+    }
+  }
+  #endif
+  if (
+    #if BLUETOOTH
+      SerialBT.available() > 0
+    #else
+      Serial.available() > 0
+    #endif
+   ) {
+    String command = 
+      #if BLUETOOTH
+        SerialBT.readStringUntil('\n');
+//        if (!BTConnected) {
+//          BTConnected = true; //uint8_t data = random(0,255);
+//          SerialBT.print("ping connect\n");
+//          Serial.println("Connected!");
+//          lastBTSend = millis();
+//        }
+      #else
+        Serial.readStringUntil('\n'); // Read the command from serial
+      #endif
+
     if ((char) command[0] == 'L') {
       int n_lights = (command.length() - 1) / 16;
       
@@ -91,12 +177,21 @@ void loop() {
       set_strip(pixels, Rs, Gs, Bs, n_lights);
     } else if ((char) command[0] == 'C') {
       strip.clear();
-    }else {
+    }else if ((char) command[0] == '+' || (char) command[0] == '-') {
       readSerial(command, &ang, &delaytime);
       currStepForAng = 0;
       rotate();
     }
   }
+  #if BLUETOOTH
+  long now = millis();
+  if (now - lastBTSend > 1000 && BTConnected) {
+    //uint8_t data = random(0,255);
+    SerialBT.print("ping\n");
+    Serial.println("Sending Ping!");
+    lastBTSend = now;
+  }
+  #endif
   /************ Perform the looping *********/
 }
 

@@ -8,13 +8,15 @@ import numpy as np
 import sounddevice as sd
 import soundfile as sf
 import serial
+# from bluetooth import *
 
 N_PIXELS = 100
 DEBUG = True
 
 ser = serial.Serial('/dev/ttyUSB0', 115200)
 # serLights  = ser
-serLights = serial.Serial('/dev/ttyUSB1', 115200)
+# serLights = serial.Serial('/dev/ttyUSB1', 115200)
+serLights = serial.Serial('/dev/ttyUSB0', 115200)
 
 i = 0
 
@@ -25,7 +27,7 @@ def sendSerMotor(data: str):
         if DEBUG:
             global i
             i += 1
-            print("SENDING DATA", i, data)
+            print("SENDING DATA MOTOR", i, data)
         ser.write(data.encode())
 
 
@@ -59,38 +61,28 @@ def save_wav_file(y, sr, file_path):
 
 
 def generateGaussianRandomMotorMovement(time_steps: int, volumes_diffs: list[int]):
+    # TODO:
+    # Max spin time
     N_ZONES = 6
+    spin_per_zone = [0, 20, 40, 80, -160, 160]
+    prob_spin = [0, 0.08, 0.2, 0.3, 0.3, 0.3]
     diff_min, diff_max = min(volumes_diffs), max(volumes_diffs)
     diff_separation = (diff_max - diff_min) / N_ZONES
-    MAX_MOVE = 200
-    MIN_MOVE = -200
-    MAX_DELAY = 3_000
-    MIN_DELAY = 2_000
 
-    gaussian_angle_means = [0 for i in range(N_ZONES)]
-    gaussian_angle_vars = [(MAX_MOVE // N_ZONES) * i for i in range(N_ZONES)]
-
-    gaussian_delay_microsec_means = [int(
-        MAX_DELAY - (((MAX_DELAY - MIN_DELAY) // N_ZONES) * (i + 1))) for i in range(N_ZONES)]
-    gaussian_delay_microsec_vars = [20 * i for i in range(N_ZONES)]
-
+    
     def sample(idx):
-        print(idx, N_ZONES)
-        while True:
-            delay_samp = np.random.normal(
-                gaussian_delay_microsec_means[idx], gaussian_delay_microsec_vars[idx])
-            angle_samp = np.random.normal(
-                gaussian_angle_means[idx], gaussian_angle_vars[idx])
-
-            if not (angle_samp > MAX_MOVE or angle_samp < MIN_MOVE or delay_samp > MAX_DELAY or delay_samp < MIN_DELAY):
-                return (int(round(angle_samp)), int(round(delay_samp)))
+        # print(idx, N_ZONES)
+        if np.random.random() < prob_spin[idx]:
+            return spin_per_zone[idx], 3_000
+        else:
+            return 0, 0
     cmds: list[str] = []
 
     def get_volume_diff_partition(i):
         # TODO: WHAT
         return min(int((volumes_diffs[i] - diff_min) // diff_separation), N_ZONES - 1)
 
-    N_STEPS_PER_MOVE = 16
+    N_STEPS_PER_MOVE = 8
     for i in range(time_steps):
         # TODO:: idk
         # if pixel
@@ -236,7 +228,7 @@ def get_sample_moments(y, sr, downbeat_subdivisions=16):
     return sample_timestamps, volumes, volume_diffs
 
 
-def send_serial_commands_at_downbeats(downbeat_times, sr, cmds):
+def send_motor_commands_at_downbeats(downbeat_times, sr, cmds):
     for i, downbeat_time in enumerate(downbeat_times):
         # Calculate the time to wait until the next downbeat
         wait_time = downbeat_time / sr
@@ -271,8 +263,10 @@ def do_it(filename, color_means, color_vars, window_length=0.2, amplification_fa
 
     lightCmds = generateGaussianRandomDownwardLight(
         len(time_steps), volumes, color_means, color_vars)
+    # motorCmds = generateGaussianRandomMotorMovement(
+    #     len(time_steps), volumes_diffs)
     motorCmds = generateGaussianRandomMotorMovement(
-        len(time_steps), volumes_diffs)
+        len(time_steps), volumes)
     # print("LEN LIGHTS", len(time_steps), len(lightCmds))
 
     # Create a thread for playing the music
@@ -288,7 +282,7 @@ def do_it(filename, color_means, color_vars, window_length=0.2, amplification_fa
         target=send_light_commands_at_downbeats, args=(time_steps, sr, lightCmds))
 
     send_motor_commands_thread = threading.Thread(
-        target=send_serial_commands_at_downbeats, args=(time_steps, sr))
+        target=send_motor_commands_at_downbeats, args=(time_steps, sr, motorCmds))
 
     play_thread.start()
     # send_motor_commands_thread.start()
@@ -318,10 +312,10 @@ if __name__ == "__main__":
         255, 0, 0], [10, 10, 10]], [[20, 2, 50], [10, 40, 50], [50, 20, 20], [2, 2, 2]]
     color_means_triumphant, color_vars_triumphant = [[250, 10, 10], [200, 10, 200], [
         255, 128, 0], [10, 10, 10]], [[10, 30, 30], [30, 40, 30], [2, 20, 1], [2, 2, 2]]
+    # filename = 'EtudeC.mp3'
     filename = 'GirlFellTrimmed.mp3'
-    filename = 'EtudeC.mp3'
     # filename = 'Canon_in_F_minor.mp3'
     # filename = 'GirlFellTrimmed.mp3 '
     # filename = 'raindrop.mp3'
-    upbeats = do_it(filename, color_means_triumphant, color_vars_triumphant)
+    upbeats = do_it(filename, color_means_melodic, color_vars_melodic)
     # print(upbeats)
