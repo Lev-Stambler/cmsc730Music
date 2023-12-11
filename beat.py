@@ -64,7 +64,7 @@ def generateGaussianRandomMotorMovement(time_steps: int, volumes_diffs: list[int
     # TODO:
     # Max spin time
     N_ZONES = 6
-    spin_per_zone = [0, 10, 20, 40, 80, 160]
+    spin_per_zone = [0, 20, 40, 60, 120, 200]
     prob_spin = [0, 0.08, 0.2, 0.3, 0.4, 0.4]
     diff_min, diff_max = min(volumes_diffs), max(volumes_diffs)
     diff_separation = (diff_max - diff_min) / N_ZONES
@@ -86,7 +86,7 @@ def generateGaussianRandomMotorMovement(time_steps: int, volumes_diffs: list[int
         return min(int((volumes_diffs[i] - diff_min) // diff_separation), N_ZONES - 1)
 
     N_STEPS_PER_MOVE = 8
-    N_STEPS_PER_BREAK = 12
+    N_STEPS_PER_BREAK = 8
     last_change = 0
     curr_angle = 0
     curr_dir = 1
