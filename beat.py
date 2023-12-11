@@ -18,7 +18,7 @@ serLights  = ser
 
 i = 0
 
-def sendSerData(data: str):
+def sendSerMotor(data: str):
     datas = data.split("\n")
     for data in datas:
         data += "\r\n"
@@ -56,6 +56,42 @@ def formatPixelSet(pixels: list[int], Rs: list[int], Gs: list[int], Bs: list[int
 def save_wav_file(y, sr, file_path):
     sf.write(file_path, y, sr)
 
+def generateGaussianRandomMotorMovement(time_steps: int, volumes_diffs: list[int]):
+    N_ZONES = 6
+    diff_min, diff_max = min(volumes_diffs), max(volumes_diffs)
+    diff_separation = (diff_max - diff_min) / N_ZONES
+    MAX_MOVE = 700
+    MIN_MOVE = -700
+    MAX_DELAY = 5_000
+    MIN_DELAY = 400
+
+
+    gaussian_angle_means = [0 for i in range(N_ZONES)]
+    gaussian_angle_vars = [40 * i for i in range(N_ZONES)]
+
+    gaussian_delay_microsec_means = [int(MAX_DELAY - (MAX_DELAY - MIN_DELAY // N_ZONES) * i) for i in range(N_ZONES)]
+    gaussian_delay_microsec_vars = [100 * i for i in range(N_ZONES)]
+
+    def sample(idx):
+        delay_samp = np.random.normal(gaussian_delay_microsec_means[idx], gaussian_delay_microsec_vars[idx])
+        angle_samp = np.random.normal(gaussian_angle_means[idx], gaussian_angle_vars[idx])
+
+        if angle_samp > MAX_MOVE or angle_samp < MIN_MOVE or delay_samp > MAX_DELAY or delay_samp < MIN_DELAY:
+            return sample(idx)
+        return (angle_samp.round().astype(int), delay_samp.round().astype(int))
+    cmds: list[str] = []
+ 
+    def get_volume_diff_partition(i):
+        return int((volumes_diffs[i] - diff_min) // diff_separation)
+
+    for i in range(time_steps):
+        # TODO:: idk
+        # if pixel 
+        # print("Color command", cmd)
+        angle_samp, delay_samp = sample(get_volume_diff_partition(i))
+        cmds.append(formatAngleMove(angle_samp, delay_samp))
+    return cmds
+
 def generateGaussianRandomDownwardLight(time_steps: int, volumes: list[int], gaussian_means: list[list[float]], gaussian_stds: list[list[float]],
                                         n_lights=N_PIXELS, top_pixel_is_max = True):
     """
@@ -75,7 +111,7 @@ def generateGaussianRandomDownwardLight(time_steps: int, volumes: list[int], gau
         if normal_samp.max() > 255 or normal_samp.min() < 0:
             return sample()
         return normal_samp.round().astype(int)
-    cmds: list[list[str]] = []
+    cmds: list[str] = []
 
     if not top_pixel_is_max:
         raise NotImplementedError("Only top pixel is max is implemented")
@@ -145,6 +181,7 @@ def get_sample_moments(y, sr, downbeat_subdivisions=16):
         
     def add_downbeat_time_steps(mul_fact=16):
         volumes = []
+        volumes_diffs = []
         steps = []
         y_abs = np.abs(y)
         for i, _ in enumerate(downbeats):
@@ -156,10 +193,15 @@ def get_sample_moments(y, sr, downbeat_subdivisions=16):
                     # Make it 1 second for now?
                     window_size = sr * 2
                     avg = sum(y_abs[beats[i] - window_size // 2:beats[i] + window_size // 2]) / window_size
+                    if i == 1 and j == 0:
+                        volumes_diffs.append(0)
+                    else:
+                        diff = avg - volumes[-1]
+                        volumes_diffs.append(diff)
                     volumes.append(avg)
-        return steps, volumes
+        return steps, volumes, volumes_diffs
 
-    sample_timestamps, volumes = add_downbeat_time_steps()
+    sample_timestamps, volumes, volume_diffs = add_downbeat_time_steps()
     # Plotting the volumes
     plt.figure(figsize=(10, 6))
     plt.plot(sample_timestamps, volumes, marker='o')
@@ -168,31 +210,39 @@ def get_sample_moments(y, sr, downbeat_subdivisions=16):
     plt.ylabel('Average Volume')
     plt.grid(True)
     plt.savefig("test_vol.png")
-    return sample_timestamps, volumes
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(sample_timestamps, volume_diffs, marker='o')
+    plt.title('Average Volume Diff at Downbeats')
+    plt.xlabel('Sample Index')
+    plt.ylabel('Average Volume Diff')
+    plt.grid(True)
+    plt.savefig("test_vol_diff.png")
+
+    return sample_timestamps, volumes, volume_diffs
 
 
-def send_serial_commands_at_downbeats(downbeat_times, sr):
+def send_serial_commands_at_downbeats(downbeat_times, sr, cmds):
     for i, downbeat_time in enumerate(downbeat_times):
         # Calculate the time to wait until the next downbeat
         wait_time = downbeat_time / sr
-        direction = 1 if i % 2 == 0 else -1
-        threading.Timer(wait_time, sendSerData, args=[
-                        formatAngleMove(direction * 100)]).start()
+        # direction = 1 if i % 2 == 0 else -1
+        threading.Timer(wait_time, sendSerMotor, args=[cmds[i]]).start()
 
 def send_light_commands_at_downbeats(downbeat_times, sr, cmds):
     for i, downbeat_time in enumerate(downbeat_times):
-        print(cmds[i], i)
+        # print(cmds[i], i)
         # Calculate the time to wait until the next downbeat
         wait_time = downbeat_time / sr
-        threading.Timer(wait_time, sendSerData, args=[cmds[i]]).start()
+        threading.Timer(wait_time, sendSerLights, args=[cmds[i]]).start()
 
 def clearLights():
-    sendSerData("C")
+    sendSerMotor("C")
 
 def do_it(filename, window_length=0.2, amplification_factor=1.2):
     # Load the audio file
     y, sr = librosa.load(filename)
-    time_steps, volumes = get_sample_moments(y, sr)
+    time_steps, volumes, volumes_diffs = get_sample_moments(y, sr)
 
     # y_amplified = amplify_on_downbeats(
     #     y, sr, downbeat_times, amplification_factor=amplification_factor, window=window_length)
@@ -203,6 +253,7 @@ def do_it(filename, window_length=0.2, amplification_factor=1.2):
     # save_wav_file(y, sr, "out.wav")
 
     lightCmds = generateGaussianRandomDownwardLight(len(time_steps), volumes, [[150, 10, 200], [20, 150, 200], [255, 0, 0], [10, 10, 10]], [[20, 2, 50], [10, 40, 50], [50, 20, 20], [2, 2, 2]])
+    motorCmds = generateGaussianRandomMotorMovement(len(time_steps), volumes_diffs)
     # print("LEN LIGHTS", len(time_steps), len(lightCmds))
 
     # Create a thread for playing the music
@@ -217,14 +268,19 @@ def do_it(filename, window_length=0.2, amplification_factor=1.2):
     send_light_commands_thread = threading.Thread(
         target=send_light_commands_at_downbeats, args=(time_steps, sr, lightCmds))
 
+    send_motor_commands_thread = threading.Thread(
+        target=send_serial_commands_at_downbeats, args=(time_steps, sr))
+
     play_thread.start()
     # send_motor_commands_thread.start()
     send_light_commands_thread.start()
+    send_motor_commands_thread.start()
     
     # Wait for the play thread to finish
     play_thread.join()
     # send_motor_commands_thread.join()
     send_light_commands_thread.join()
+    send_motor_commands_thread.join()
 
 # def do_it(filename, window_length=0.2, amplification_factor=.1):
 #     # Load the audio file
@@ -240,6 +296,7 @@ def do_it(filename, window_length=0.2, amplification_factor=1.2):
 if __name__ == "__main__":
     # Example:
     filename = 'GirlFellTrimmed.mp3'
+    # filename = 'GirlFellTrimmed.mp3 '
     # filename = 'raindrop.mp3'
     upbeats = do_it(filename)
     # print(upbeats)
